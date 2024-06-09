@@ -1,0 +1,10 @@
+## Interface: @toc-version-retail@
+## Title: Unified Profile Manager
+## Notes: A simple overview of all addon profiles for addons that use AceDB
+## Author: Numy
+## IconTexture: Interface\Addons\UnifiedProfileManager\media\icon
+## Version: @project-version@
+## X-Curse-Project-ID: 1033706
+
+libs\libs.xml
+UnifiedProfileManager.lua
