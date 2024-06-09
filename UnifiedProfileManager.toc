@@ -1,4 +1,9 @@
 ## Interface: @toc-version-retail@
+## Interface-Retail: @toc-version-retail@
+## Interface-Classic: @toc-version-classic@
+## Interface-BCC: @toc-version-bcc@
+## Interface-Wrath: @toc-version-wrath@
+## Interface-Cata: @toc-version-cata@
 ## Title: Unified Profile Manager
 ## Notes: A simple overview of all addon profiles for addons that use AceDB
 ## Author: Numy
