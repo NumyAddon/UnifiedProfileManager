@@ -200,11 +200,19 @@ function ns:MakeAltOptions(db)
     return group;
 end
 
-local function DeepCopyTable(settings, ignoredValue)
+--- @param tbl source table
+--- @param ignoredValue value that is copied raw, not recursively
+--- @param copies table to store copies of tables to avoid infinite recursion
+local function DeepCopyTable(tbl, ignoredValue, copies)
+    copies = copies or {}
 	local copy = {};
-	for k, v in pairs(settings) do
+	if copies[tbl] then
+        return copies[tbl];
+    end
+	copies[tbl] = copy;
+	for k, v in pairs(tbl) do
 		if type(v) == "table" and v ~= ignoredValue then
-			copy[k] = CopyTable(v);
+			copy[k] = DeepCopyTable(v, ignoredValue, copies);
 		else
 			copy[k] = v;
 		end
