@@ -1,12 +1,51 @@
 local name, ns = ...;
 
 local AceDB = LibStub('AceDB-3.0');
-local AceDBOptions = LibStub("AceDBOptions-3.0");
-local AceConfig = LibStub("AceConfig-3.0");
-local AceConfigDialog = LibStub("AceConfigDialog-3.0");
+local AceDBOptions = LibStub('AceDBOptions-3.0');
+local AceConfig = LibStub('AceConfig-3.0');
+local AceConfigDialog = LibStub('AceConfigDialog-3.0');
 
 local function SortAddons(name1, name2)
     return strcmputf8i(StripHyperlinks(name1), StripHyperlinks(name2)) < 0;
+end
+
+local currentCharacterName = UnitName('player')..' - '..GetRealmName();
+local L;
+do
+    L = {
+        choose_sub = 'Select one of your currently available profiles.',
+        default = 'Default',
+    };
+
+    local LOCALE = GetLocale();
+    if LOCALE == 'deDE' then
+        L['choose_sub'] = 'Wählt ein bereits vorhandenes Profil aus.';
+        L['default'] = 'Standard';
+    elseif LOCALE == 'frFR' then
+        L['choose_sub'] = 'Permet de choisir un des profils déjà disponibles.';
+        L['default'] = 'Défaut';
+    elseif LOCALE == 'koKR' then
+        L['choose_sub'] = '현재 이용할 수 있는 프로필 중 하나를 선택합니다.';
+        L['default'] = '기본값';
+    elseif LOCALE == 'esES' or LOCALE == 'esMX' then
+        L['choose_sub'] = 'Selecciona uno de los perfiles disponibles.';
+        L['default'] = 'Por defecto';
+    elseif LOCALE == 'zhTW' then
+        L['choose_sub'] = '從當前可用的設定檔裡面選擇一個。';
+        L['default'] = '預設';
+    elseif LOCALE == 'zhCN' then
+        L['choose_sub'] = '从当前可用的配置文件里面选择一个。';
+        L['default'] = '默认';
+    elseif LOCALE == 'ruRU' then
+        L['choose_sub'] = 'Выбор одного из уже доступных профилей.';
+        L['default'] = 'По умолчанию';
+    elseif LOCALE == 'itIT' then
+        L['choose_sub'] = 'Seleziona uno dei profili attualmente disponibili.';
+        L['default'] = 'Predefinito';
+    elseif LOCALE == 'ptBR' then
+        L['choose_sub'] = 'Selecione um de seus perfis atualmente disponíveis.';
+        L['default'] = 'Padrão';
+    end
 end
 
 ns.resultCache = {};
@@ -48,6 +87,129 @@ function ns:GetAddonNameForDB(db)
     end
 
     return ns.dbCache[db];
+end
+
+local altHandlerPrototype = {};
+do
+    local defaultProfilesProto = {
+        ['Default'] = L['default'],
+    };
+    for classID = 1, GetNumClasses() do
+        local className, classFilename = GetClassInfo(classID);
+        if className then
+            defaultProfilesProto[classFilename] = className;
+        end
+    end
+
+    local defaultProfileCache = {};
+    function altHandlerPrototype:GetDefaultProfilesForCharacter(characterName)
+        if defaultProfileCache[characterName] then
+            return defaultProfileCache[characterName];
+        end
+        local defaultProfiles = Mixin({
+            [characterName] = characterName,
+        }, defaultProfilesProto);
+        local realm = characterName:match(' %- (.+)');
+        if realm then
+            defaultProfiles[realm] = realm;
+        end
+
+        defaultProfileCache[characterName] = defaultProfiles;
+        return defaultProfiles;
+    end
+
+	function altHandlerPrototype:ListProfiles(info)
+	    local db = self.db;
+	    local characterName = info.arg;
+        local profiles = {};
+        for profile, _ in pairs(db.sv.profiles) do
+            profiles[profile] = profile;
+        end
+
+        for k, v in pairs(self:GetDefaultProfilesForCharacter(characterName)) do
+            profiles[k] = v;
+        end
+
+        return profiles;
+	end
+
+	function altHandlerPrototype:GetCurrentProfile(info)
+        local db = self.db;
+        local characterName = info.arg;
+        local currentProfile = db.sv and db.sv.profileKeys and db.sv.profileKeys[characterName];
+
+        return currentProfile;
+    end
+
+    function altHandlerPrototype:SetProfile(info, profile)
+        local db = self.db;
+        local characterName = info.arg;
+        db.sv.profileKeys[characterName] = profile;
+    end
+end
+
+ns.altHandlers = {};
+function ns:MakeAltOptions(db)
+    if not db.sv or not db.sv.profileKeys or not next(db.sv.profileKeys) then
+        return nil;
+    end
+    local altHandler = self.altHandlers[db] or {db = db};
+    Mixin(altHandler, altHandlerPrototype);
+
+    local group = {
+        type = 'group',
+        name = 'Character Profiles',
+        inline = true,
+        order = -1,
+        args = {},
+        handler = altHandler,
+    }
+    local option = {
+        name = '', -- character name
+        desc = L['choose_sub'],
+        type = 'select',
+        order = 1, -- order by character name
+        arg = '', -- character name
+        get = 'GetCurrentProfile',
+        set = 'SetProfile',
+        values = 'ListProfiles',
+    };
+
+    local orderedCharacterNames = {};
+    for characterName, _ in pairs(db.sv.profileKeys) do
+        table.insert(orderedCharacterNames, characterName);
+    end
+    table.sort(orderedCharacterNames);
+    orderedCharacterNames = tInvert(orderedCharacterNames);
+
+    local i = 1;
+    for characterName, _ in pairs(db.sv.profileKeys) do
+        if characterName ~= currentCharacterName then
+            i = i + 1;
+            local charOption = CopyTable(option, true);
+            charOption.name = characterName;
+            charOption.arg = characterName;
+            charOption.order = orderedCharacterNames[characterName] or i;
+            group.args['char'..i] = charOption;
+        end
+    end
+    if not next(group.args) then
+        return nil;
+    end
+
+    return group;
+end
+
+local function DeepCopyTable(settings, ignoredValue)
+	local copy = {};
+	for k, v in pairs(settings) do
+		if type(v) == "table" and v ~= ignoredValue then
+			copy[k] = CopyTable(v);
+		else
+			copy[k] = v;
+		end
+	end
+	return copy;
 end
 
 function ns:GetOptionsTable(skipAddons)
@@ -105,10 +267,11 @@ function ns:GetOptionsTable(skipAddons)
             table.insert(addonNames, addonName);
             addonOrder[addonName] = i;
 
-            local option = CopyTable(AceDBOptions:GetOptionsTable(db), true);
+            local option = DeepCopyTable(AceDBOptions:GetOptionsTable(db), db);
             option.order = getOrder;
             option.name = addonName;
             option.inline = false;
+            option.args.alts = self:MakeAltOptions(db);
             options.args['profiles'..i] = option;
 
             local choose = CopyTable(option.args.choose);
