@@ -108,6 +108,7 @@ function ns:GetOptionsTable(skipAddons)
             local option = CopyTable(AceDBOptions:GetOptionsTable(db), true);
             option.order = getOrder;
             option.name = addonName;
+            option.inline = false;
             options.args['profiles'..i] = option;
 
             local choose = CopyTable(option.args.choose);
