@@ -94,10 +94,11 @@ do
     local defaultProfilesProto = {
         ['Default'] = L['default'],
     };
+    local classNameFormat = '|Tinterface/icons/classicon_%s:16|t %s';
     for classID = 1, GetNumClasses() do
         local className, classFilename = GetClassInfo(classID);
         if className then
-            defaultProfilesProto[classFilename] = className;
+            defaultProfilesProto[classFilename] = classNameFormat:format(classFilename, className);
         end
     end
 
