@@ -316,7 +316,21 @@ function ns:Init()
     _G.SLASH_UNIFIED_PROFILE_MANAGER1 = '/upm';
     _G.SLASH_UNIFIED_PROFILE_MANAGER2 = '/profiles';
     SlashCmdList['UNIFIED_PROFILE_MANAGER'] = function()
-        Settings.OpenToCategory(category);
+        AceConfig:RegisterOptionsTable(name, ns:GetOptionsTable());
+        AceConfigDialog:Open(name);
+        local container = AceConfigDialog.OpenFrames[name];
+        if not container or not container.frame then return; end
+        container:SetTitle('Unified Profile Manager');
+        local frame = container.frame;
+        frame:SetMovable(true);
+        frame:SetScript('OnMouseDown', function(self)
+            self:StartMoving();
+        end);
+        frame:SetScript('OnMouseUp', function(self)
+            self:StopMovingOrSizing();
+        end);
+        frame.ClearAllPoints = nop;
+        frame.SetPoint = nop;
     end;
 end
 
