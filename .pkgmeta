@@ -6,3 +6,4 @@ externals:
     libs/AceGUI-3.0: https://repos.wowace.com/wow/ace3/trunk/AceGUI-3.0
     libs/CallbackHandler-1.0: https://repos.wowace.com/wow/ace3/trunk/CallbackHandler-1.0
     libs/LibStub: https://repos.wowace.com/wow/ace3/trunk/LibStub
+    libs/LibDualSpec-1.0: git://git.wowace.com/wow/libdualspec-1-0/mainline.git

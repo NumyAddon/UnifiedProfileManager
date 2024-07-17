@@ -4,12 +4,14 @@ local AceDB = LibStub('AceDB-3.0');
 local AceDBOptions = LibStub('AceDBOptions-3.0');
 local AceConfig = LibStub('AceConfig-3.0');
 local AceConfigDialog = LibStub('AceConfigDialog-3.0');
+local LibDualSpec = LibStub('LibDualSpec-1.0');
 
 local function SortAddons(name1, name2)
     return strcmputf8i(StripHyperlinks(name1), StripHyperlinks(name2)) < 0;
 end
 
 local currentCharacterName = UnitName('player')..' - '..GetRealmName();
+local DEFAULT_OPTION_KEY = 'Default';
 local L;
 do
     L = {
@@ -48,8 +50,70 @@ do
     end
 end
 
-ns.resultCache = {};
-function ns:FindGlobal(item)
+--- @class UnifiedProfileManager: FRAME
+local UPM = CreateFrame('FRAME');
+UPM:SetScript('OnEvent', function(self, event, ...)
+    return self[event](self, ...);
+end);
+UPM:RegisterEvent('ADDON_LOADED');
+
+function UPM:ADDON_LOADED()
+    if NumyProfiler then
+        --- @type NumyProfiler
+        local NumyProfiler = NumyProfiler;
+        NumyProfiler:WrapModules(name, 'Main', self);
+    end
+    UPM:UnregisterEvent('ADDON_LOADED');
+    UnifiedProfileManagerDB = UnifiedProfileManagerDB or {};
+    self.db = UnifiedProfileManagerDB;
+    local defaults = {
+        hideAddonsSetToDefault = false,
+        hideAddonsWithAllAltsUsingSameProfile = false,
+        hideAltsMatchingCurrentCharacter = false,
+    };
+    for property, value in pairs(defaults) do
+        if self.db[property] == nil then
+            self.db[property] = value;
+        end
+    end
+
+    AceConfig:RegisterOptionsTable(name, self:GetOptionsTable(true));
+    local panel, category = AceConfigDialog:AddToBlizOptions(name, name);
+
+    local ignoreHook = false;
+    panel:HookScript('OnShow', function()
+        if ignoreHook then return; end
+        ignoreHook = true;
+        AceConfig:RegisterOptionsTable(name, self:GetOptionsTable());
+        panel:Hide();
+        panel:Show();
+        RunNextFrame(function() ignoreHook = false; end);
+    end);
+
+    _G.SLASH_UNIFIED_PROFILE_MANAGER1 = '/upm';
+    _G.SLASH_UNIFIED_PROFILE_MANAGER2 = '/profiles';
+    SlashCmdList['UNIFIED_PROFILE_MANAGER'] = function()
+        AceConfig:RegisterOptionsTable(name, self:GetOptionsTable());
+        AceConfigDialog:Open(name);
+        local container = AceConfigDialog.OpenFrames[name];
+        if not container or not container.frame then return; end
+        container:SetTitle('Unified Profile Manager');
+        container.SetTitle = nop;
+        local frame = container.frame;
+        frame:SetMovable(true);
+        frame:SetScript('OnMouseDown', function(self)
+            self:StartMoving();
+        end);
+        frame:SetScript('OnMouseUp', function(self)
+            self:StopMovingOrSizing();
+        end);
+        frame.ClearAllPoints = nop;
+        frame.SetPoint = nop;
+    end;
+end
+
+UPM.resultCache = {};
+function UPM:FindGlobal(item)
     if not self.resultCache[item] then
         for k, v in pairs(_G) do
             if item == v then
@@ -62,7 +126,7 @@ function ns:FindGlobal(item)
     return self.resultCache[item];
 end
 
-function ns:GetDuplicateAddons()
+function UPM:GetDuplicateAddons()
     local duplicateAddons = {};
     local addonNames = {};
     for db, _ in pairs(AceDB.db_registry) do
@@ -78,27 +142,35 @@ function ns:GetDuplicateAddons()
     return duplicateAddons;
 end
 
-ns.dbCache = {};
-function ns:GetAddonNameForDB(db)
-    if not ns.dbCache[db] then
+UPM.dbCache = {};
+function UPM:GetAddonNameForDB(db)
+    if not self.dbCache[db] then
         local _, addonName = issecurevariable(db, 'sv');
         _, addonName = C_AddOns.GetAddOnInfo(addonName);
-        ns.dbCache[db] = addonName;
+        self.dbCache[db] = addonName;
     end
 
-    return ns.dbCache[db];
+    return self.dbCache[db];
 end
 
 local altHandlerPrototype = {};
 do
+    local CHARACTER_MAGIC_KEY = '%character%';
+    local CHARACTER_REALM_MAGIC_KEY = '%character_realm%';
     local defaultProfilesProto = {
-        ['Default'] = L['default'],
+        [DEFAULT_OPTION_KEY] = L['default'],
+    };
+    local defaultProfilesOrder = {
+        DEFAULT_OPTION_KEY,
+        CHARACTER_MAGIC_KEY,
+        CHARACTER_REALM_MAGIC_KEY,
     };
     local classNameFormat = '|Tinterface/icons/classicon_%s:16|t %s';
     for classID = 1, GetNumClasses() do
         local className, classFilename = GetClassInfo(classID);
         if className then
             defaultProfilesProto[classFilename] = classNameFormat:format(classFilename, className);
+            table.insert(defaultProfilesOrder, classFilename);
         end
     end
 
@@ -107,6 +179,7 @@ do
         if defaultProfileCache[characterName] then
             return defaultProfileCache[characterName];
         end
+        if characterName == '-' then return defaultProfilesProto; end
         local defaultProfiles = Mixin({
             [characterName] = characterName,
         }, defaultProfilesProto);
@@ -134,9 +207,54 @@ do
         return profiles;
 	end
 
+	function altHandlerPrototype:ListOrderedProfiles(info)
+        local db = self.db;
+        local characterName = info.arg;
+        local isAll = characterName == '-';
+        local realm = characterName:match(' %- (.+)');
+        local defaultProfiles = self:GetDefaultProfilesForCharacter(characterName);
+        local orderedProfileKeys = {};
+        for profile, _ in pairs(db.sv.profiles) do
+            if not defaultProfiles[profile] then
+                table.insert(orderedProfileKeys, profile);
+            end
+        end
+        table.sort(orderedProfileKeys);
+
+        local orderedProfiles = {};
+        for _, v in ipairs(defaultProfilesOrder) do
+            if not isAll and v == CHARACTER_MAGIC_KEY then
+                v = characterName;
+            elseif not isAll and v == CHARACTER_REALM_MAGIC_KEY then
+                v = realm;
+            end
+            if defaultProfiles[v] then
+                table.insert(orderedProfiles, v);
+            end
+        end
+        for _, profile in ipairs(orderedProfileKeys) do
+            table.insert(orderedProfiles, profile);
+        end
+
+        return orderedProfiles;
+    end
+
 	function altHandlerPrototype:GetCurrentProfile(info)
         local db = self.db;
         local characterName = info.arg;
+        local isAll = characterName == '-';
+        if isAll then
+            local foundProfile
+            for character, profile in pairs(db.sv.profileKeys) do
+                if not foundProfile then
+                    foundProfile = profile;
+                elseif profile ~= foundProfile and character ~= currentCharacterName then
+                    return nil;
+                end
+            end
+
+            return foundProfile;
+        end
         local currentProfile = db.sv and db.sv.profileKeys and db.sv.profileKeys[characterName];
 
         return currentProfile;
@@ -145,24 +263,76 @@ do
     function altHandlerPrototype:SetProfile(info, profile)
         local db = self.db;
         local characterName = info.arg;
-        db.sv.profileKeys[characterName] = profile;
+        local isAll = characterName == '-';
+        if isAll then
+            for character, _ in pairs(db.sv.profileKeys) do
+                if character ~= currentCharacterName then
+                    db.sv.profileKeys[character] = profile;
+                end
+            end
+        else
+            db.sv.profileKeys[characterName] = profile;
+        end
+    end
+
+    function altHandlerPrototype:IsHidden(info)
+        local db = self.db;
+        local characterName = info.arg;
+        local currentCharactersProfile = db.sv.profileKeys[currentCharacterName];
+        local profile = db.sv.profileKeys[characterName];
+        if UPM.db.hideAltsMatchingCurrentCharacter and currentCharactersProfile == profile then
+            return true;
+        end
+
+        return false;
     end
 end
 
-ns.altHandlers = {};
-function ns:MakeAltOptions(db)
+UPM.altHandlers = {};
+function UPM:MakeAltOptions(db)
     if not db.sv or not db.sv.profileKeys or not next(db.sv.profileKeys) then
         return nil;
     end
     local altHandler = self.altHandlers[db] or {db = db};
     Mixin(altHandler, altHandlerPrototype);
 
+    local increment = CreateCounter(1);
     local group = {
         type = 'group',
         name = 'Character Profiles',
         inline = true,
-        order = -1,
-        args = {},
+        order = -1, -- last
+        args = {
+            applyToAll = {
+                name = 'Apply to all alts',
+                desc = L['choose_sub'] .. ' This applies to all characters, except the current character!',
+                type = 'select',
+                order = increment(),
+                arg = '-',
+                get = 'GetCurrentProfile',
+                set = 'SetProfile',
+                values = 'ListProfiles',
+                sorting = 'ListOrderedProfiles',
+            },
+            hideAltsMatchingCurrentCharacter = {
+                type = 'toggle',
+                name = 'Hide alts matching current character',
+                desc = ('Hide alts with the same profile as %s'):format(currentCharacterName),
+                order = increment(),
+                get = function()
+                    return self.db.hideAltsMatchingCurrentCharacter;
+                end,
+                set = function(info, value)
+                    self.db.hideAltsMatchingCurrentCharacter = value;
+                end,
+                width = 'double',
+            },
+            header = {
+                type = 'header',
+                name = '',
+                order = increment(),
+            },
+        },
         handler = altHandler,
     }
     local option = {
@@ -174,6 +344,8 @@ function ns:MakeAltOptions(db)
         get = 'GetCurrentProfile',
         set = 'SetProfile',
         values = 'ListProfiles',
+        sorting = 'ListOrderedProfiles',
+        hidden = 'IsHidden',
     };
 
     local orderedCharacterNames = {};
@@ -183,6 +355,7 @@ function ns:MakeAltOptions(db)
     table.sort(orderedCharacterNames);
     orderedCharacterNames = tInvert(orderedCharacterNames);
 
+    local offset = increment();
     local i = 1;
     for characterName, _ in pairs(db.sv.profileKeys) do
         if characterName ~= currentCharacterName then
@@ -190,7 +363,7 @@ function ns:MakeAltOptions(db)
             local charOption = CopyTable(option, true);
             charOption.name = characterName;
             charOption.arg = characterName;
-            charOption.order = orderedCharacterNames[characterName] or i;
+            charOption.order = (orderedCharacterNames[characterName] or i) + offset;
             group.args['char'..i] = charOption;
         end
     end
@@ -212,7 +385,7 @@ local function DeepCopyTable(tbl, ignoredValue, copies)
     end
 	copies[tbl] = copy;
 	for k, v in pairs(tbl) do
-		if type(v) == "table" and v ~= ignoredValue then
+		if type(v) == 'table' and v ~= ignoredValue then
 			copy[k] = DeepCopyTable(v, ignoredValue, copies);
 		else
 			copy[k] = v;
@@ -221,28 +394,97 @@ local function DeepCopyTable(tbl, ignoredValue, copies)
 	return copy;
 end
 
-function ns:GetOptionsTable(skipAddons)
+function UPM:GetUnusedProfiles(db)
+    local profiles = db.sv.profiles;
+    local profileKeys = db.sv.profileKeys;
+    local usedProfiles = {};
+    for _, profile in pairs(profileKeys) do
+        usedProfiles[profile] = true;
+    end
+    local unusedProfiles = {};
+    for profile, _ in pairs(profiles) do
+        if not usedProfiles[profile] then
+            table.insert(unusedProfiles, profile);
+        end
+    end
+
+    return unusedProfiles;
+end
+
+function UPM:GetAceDBOptionsTable(db)
+    local options = DeepCopyTable(AceDBOptions:GetOptionsTable(db), db);
+
+    local isLibDualSpec = LibDualSpec.registry[db] and true or false;
+    if isLibDualSpec then
+        LibDualSpec:EnhanceOptions(options, db);
+    end
+
+    return options;
+end
+
+function UPM:GetOptionsTable(skipAddons)
+    local increment = CreateCounter(1);
+    local function getOption(info)
+        return self.db[info[#info]];
+    end
+    local function setOption(info, value)
+        self.db[info[#info]] = value;
+    end
     local options = {
         type = 'group',
         args = {
             ['allProfiles'] = {
                 type = 'group',
-                order = 2,
+                order = 0,
                 name = 'All Addons',
                 desc = 'Overview of all addon profiles',
                 args = {
                     desc = {
                         type = 'description',
                         name = 'You can change the profile for all addons here. Some addons may need you to reload the UI after switching, to avoid issues',
-                        order = 1,
+                        order = increment(),
+                    },
+                    hideAddonsSetToDefault = {
+                        type = 'toggle',
+                        name = 'Hide Addons Set to ' .. L['default'],
+                        desc = ('Hide addons with their profile set to the %s profile'):format(L['default']),
+                        order = increment(),
+                        get = getOption,
+                        set = setOption,
+                        width = 'double',
+                    },
+                    hideAddonsWithAllAltsUsingSameProfile = {
+                        type = 'toggle',
+                        name = 'Hide Addons where all alts use the same profile',
+                        desc = 'Hide addons where all characters use the same profile',
+                        order = increment(),
+                        get = getOption,
+                        set = setOption,
+                        width = 'double',
+                    },
+                    hideAddonsSetToCharProfile = {
+                        type = 'toggle',
+                        name = ('Hide Addons Set to %s'):format(currentCharacterName),
+                        desc = ('Hide addons with their profile set to %s'):format(currentCharacterName),
+                        order = increment(),
+                        get = getOption,
+                        set = setOption,
+                        width = 'double',
                     },
                     reloadUI = {
                         type = 'execute',
                         name = 'Reload UI',
-                        order = 2,
+                        order = increment(),
                         width = 'full',
                         func = ReloadUI,
                     },
+                    addons = {
+                        type = 'group',
+                        name = 'Addon Profiles',
+                        inline = true,
+                        order = increment(),
+                        args = {},
+                    }
                 },
             }
         },
@@ -258,8 +500,27 @@ function ns:GetOptionsTable(skipAddons)
 
         return addonOrder[addonName] or -1;
     end
-    local increment = CreateCounter(2);
-    local allProfiles = options.args.allProfiles;
+    local function prune(info)
+        local db = info.arg;
+        local unusedProfiles = self:GetUnusedProfiles(db);
+        for _, profile in ipairs(unusedProfiles) do
+            db.sv.profiles[profile] = nil;
+        end
+    end
+    local function pruneConfirmation(info)
+        local db = info.arg;
+        local unusedProfiles = self:GetUnusedProfiles(db);
+        if #unusedProfiles == 0 then
+            return false;
+        end
+
+        return ('Are you sure you want to remove %d unused profiles?\n%s'):format(#unusedProfiles, table.concat(unusedProfiles, '\n'));
+    end
+    local function pruneDisabled(info)
+        return #self:GetUnusedProfiles(info.arg) == 0;
+    end
+
+    local addons = options.args.allProfiles.args.addons;
 
     local duplicateAddons = self:GetDuplicateAddons();
 
@@ -274,64 +535,56 @@ function ns:GetOptionsTable(skipAddons)
             end
 
             table.insert(addonNames, addonName);
-            addonOrder[addonName] = i;
 
-            local option = DeepCopyTable(AceDBOptions:GetOptionsTable(db), db);
+            local option = self:GetAceDBOptionsTable(db);
             option.order = getOrder;
             option.name = addonName;
             option.inline = false;
             option.args.alts = self:MakeAltOptions(db);
+            option.args.prune = {
+                type = 'execute',
+                name = 'Prune',
+                desc = 'Remove all profiles that are not used by any character',
+                confirm = pruneConfirmation,
+                disabled = pruneDisabled,
+                order = -2,
+                arg = db,
+                func = prune,
+            };
             options.args['profiles'..i] = option;
 
             local choose = CopyTable(option.args.choose);
             choose.order = getOrder;
             choose.handler = option.handler;
             choose.name = addonName;
-            allProfiles.args['profiles'..i] = choose;
+            choose.hidden = function()
+                local currentProfile = choose.handler:GetCurrentProfile(choose);
+                if self.db.hideAddonsSetToDefault and currentProfile == DEFAULT_OPTION_KEY then
+                    return true;
+                end
+                if self.db.hideAddonsSetToCharProfile and currentProfile == currentCharacterName then
+                    return true;
+                end
+                if self.db.hideAddonsWithAllAltsUsingSameProfile then
+                    local lastSeenProfile;
+                    for _, v in pairs(choose.handler.db.sv.profileKeys) do
+                        if not lastSeenProfile then
+                            lastSeenProfile = v;
+                        elseif lastSeenProfile ~= v then
+                            return false;
+                        end
+                    end
+                    return true;
+                end
+            end
+            addons.args['profiles'..i] = choose;
         end
     end
 
     table.sort(addonNames, SortAddons);
     for i, addonName in ipairs(addonNames) do
-        addonOrder[addonName] = i + 2;
+        addonOrder[addonName] = i;
     end
 
     return options;
 end
-
-function ns:Init()
-    AceConfig:RegisterOptionsTable(name, ns:GetOptionsTable(true));
-    local panel, category = AceConfigDialog:AddToBlizOptions(name, name);
-
-    local ignoreHook = false;
-    panel:HookScript('OnShow', function()
-        if ignoreHook then return; end
-        ignoreHook = true;
-        AceConfig:RegisterOptionsTable(name, ns:GetOptionsTable());
-        panel:Hide();
-        panel:Show();
-        RunNextFrame(function() ignoreHook = false; end);
-    end);
-
-    _G.SLASH_UNIFIED_PROFILE_MANAGER1 = '/upm';
-    _G.SLASH_UNIFIED_PROFILE_MANAGER2 = '/profiles';
-    SlashCmdList['UNIFIED_PROFILE_MANAGER'] = function()
-        AceConfig:RegisterOptionsTable(name, ns:GetOptionsTable());
-        AceConfigDialog:Open(name);
-        local container = AceConfigDialog.OpenFrames[name];
-        if not container or not container.frame then return; end
-        container:SetTitle('Unified Profile Manager');
-        local frame = container.frame;
-        frame:SetMovable(true);
-        frame:SetScript('OnMouseDown', function(self)
-            self:StartMoving();
-        end);
-        frame:SetScript('OnMouseUp', function(self)
-            self:StopMovingOrSizing();
-        end);
-        frame.ClearAllPoints = nop;
-        frame.SetPoint = nop;
-    end;
-end
-
-ns:Init();
