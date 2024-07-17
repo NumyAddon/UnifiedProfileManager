@@ -126,6 +126,18 @@ function UPM:FindGlobal(item)
     return self.resultCache[item];
 end
 
+function UPM:IsBlacklistedDB(db)
+    -- some addons include debug code for LibDualSpec, which creates a database, we don't show it, cause it's nonsense and confusing to the player
+    -- we scan between minors 15 and 100, for arbitrary reasons, at July 2024 we're at minor 24.
+    for minor = 15, 100 do
+        if db.sv == _G[('LibDualSpec-1.0-%d test'):format(minor)] then
+            return true;
+        end
+    end
+
+    return false;
+end
+
 function UPM:GetDuplicateAddons()
     local duplicateAddons = {};
     local addonNames = {};
@@ -525,7 +537,7 @@ function UPM:GetOptionsTable(skipAddons)
     local duplicateAddons = self:GetDuplicateAddons();
 
     for db, _ in pairs(AceDB.db_registry) do
-        if not db.parent then
+        if not db.parent and not self:IsBlacklistedDB(db) then
             local i = increment();
 
             local addonName = self:GetAddonNameForDB(db);
