@@ -57,6 +57,21 @@ UPM:SetScript('OnEvent', function(self, event, ...)
 end);
 UPM:RegisterEvent('ADDON_LOADED');
 
+do
+    function UnifiedProfileManager_OnAddonCompartmentClick()
+        UPM:OpenConfigUI();
+    end
+    function UnifiedProfileManager_OnAddonCompartmentEnter(_, button)
+        GameTooltip:SetOwner(button, 'ANCHOR_RIGHT');
+        GameTooltip:SetText('Unified Profile Manager');
+        GameTooltip:AddLine(CreateAtlasMarkup('NPE_LeftClick', 18, 18) .. ' to manage your profiles', 1, 1, 1);
+        GameTooltip:Show();
+    end
+    function UnifiedProfileManager_OnAddonCompartmentLeave()
+        GameTooltip:Hide();
+    end
+end
+
 function UPM:ADDON_LOADED()
     if NumyProfiler then
         --- @type NumyProfiler
@@ -92,24 +107,26 @@ function UPM:ADDON_LOADED()
 
     _G.SLASH_UNIFIED_PROFILE_MANAGER1 = '/upm';
     _G.SLASH_UNIFIED_PROFILE_MANAGER2 = '/profiles';
-    SlashCmdList['UNIFIED_PROFILE_MANAGER'] = function()
-        AceConfig:RegisterOptionsTable(name, self:GetOptionsTable());
-        AceConfigDialog:Open(name);
-        local container = AceConfigDialog.OpenFrames[name];
-        if not container or not container.frame then return; end
-        container:SetTitle('Unified Profile Manager');
-        container.SetTitle = nop;
-        local frame = container.frame;
-        frame:SetMovable(true);
-        frame:SetScript('OnMouseDown', function(self)
-            self:StartMoving();
-        end);
-        frame:SetScript('OnMouseUp', function(self)
-            self:StopMovingOrSizing();
-        end);
-        frame.ClearAllPoints = nop;
-        frame.SetPoint = nop;
-    end;
+    SlashCmdList['UNIFIED_PROFILE_MANAGER'] = function() UPM:OpenConfigUI(); end;
+end
+
+function UPM:OpenConfigUI()
+    AceConfig:RegisterOptionsTable(name, self:GetOptionsTable());
+    AceConfigDialog:Open(name);
+    local container = AceConfigDialog.OpenFrames[name];
+    if not container or not container.frame then return; end
+    container:SetTitle('Unified Profile Manager');
+    container.SetTitle = nop;
+    local frame = container.frame;
+    frame:SetMovable(true);
+    frame:SetScript('OnMouseDown', function(self)
+       self:StartMoving();
+    end);
+    frame:SetScript('OnMouseUp', function(self)
+       self:StopMovingOrSizing();
+    end);
+    frame.ClearAllPoints = nop;
+    frame.SetPoint = nop;
 end
 
 UPM.resultCache = {};

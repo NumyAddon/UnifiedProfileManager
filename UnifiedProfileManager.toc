@@ -8,6 +8,9 @@
 ## Notes: A simple overview of all addon profiles for addons that use AceDB
 ## Author: Numy
 ## SavedVariables: UnifiedProfileManagerDB
+## AddonCompartmentFunc: UnifiedProfileManager_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: UnifiedProfileManager_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: UnifiedProfileManager_OnAddonCompartmentLeave
 ## IconTexture: Interface\Addons\UnifiedProfileManager\media\icon
 ## Version: @project-version@
 ## X-Curse-Project-ID: 1033706
