@@ -379,7 +379,7 @@ function UPM:MakeAltOptions(db)
 
     local orderedCharacterNames = {};
     for characterName, _ in pairs(db.sv.profileKeys) do
-        table.insert(orderedCharacterNames, characterName);
+        table.insert(orderedCharacterNames, tostring(characterName));
     end
     table.sort(orderedCharacterNames);
     orderedCharacterNames = tInvert(orderedCharacterNames);
@@ -387,6 +387,7 @@ function UPM:MakeAltOptions(db)
     local offset = increment();
     local i = 1;
     for characterName, _ in pairs(db.sv.profileKeys) do
+        characterName = tostring(characterName);
         if characterName ~= currentCharacterName then
             i = i + 1;
             local charOption = CopyTable(option, true);
