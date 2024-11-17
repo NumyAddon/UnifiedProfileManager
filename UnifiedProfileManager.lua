@@ -4,7 +4,8 @@ local AceDB = LibStub('AceDB-3.0');
 local AceDBOptions = LibStub('AceDBOptions-3.0');
 local AceConfig = LibStub('AceConfig-3.0');
 local AceConfigDialog = LibStub('AceConfigDialog-3.0');
-local LibDualSpec = LibStub('LibDualSpec-1.0');
+-- LibDualSpec does not load on non-SoD classic era
+local LibDualSpec = LibStub('LibDualSpec-1.0', true);
 
 local function SortAddons(name1, name2)
     return strcmputf8i(StripHyperlinks(name1), StripHyperlinks(name2)) < 0;
@@ -444,7 +445,7 @@ end
 function UPM:GetAceDBOptionsTable(db)
     local options = DeepCopyTable(AceDBOptions:GetOptionsTable(db), db);
 
-    local isLibDualSpec = LibDualSpec.registry[db] and true or false;
+    local isLibDualSpec = LibDualSpec and LibDualSpec.registry[db] and true or false;
     if isLibDualSpec then
         LibDualSpec:EnhanceOptions(options, db);
     end
