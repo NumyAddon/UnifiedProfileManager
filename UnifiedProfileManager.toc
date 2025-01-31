@@ -14,6 +14,17 @@
 ## IconTexture: Interface\Addons\UnifiedProfileManager\media\icon
 ## Version: @project-version@
 ## X-Curse-Project-ID: 1033706
+## Category-enUS: Other
+## Category-deDE: Anderes
+## Category-esES: Otros
+## Category-esMX: Otros
+## Category-frFR: Autre
+## Category-itIT: Altro
+## Category-koKR: 기타
+## Category-ptBR: Outro
+## Category-ruRU: Другое
+## Category-zhCN: 其它
+## Category-zhTW: 其他
 
 libs\libs.xml
 UnifiedProfileManager.lua
