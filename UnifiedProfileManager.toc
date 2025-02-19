@@ -14,6 +14,7 @@
 ## IconTexture: Interface\Addons\UnifiedProfileManager\media\icon
 ## Version: @project-version@
 ## X-Curse-Project-ID: 1033706
+## X-Wago-ID: BKpq3XGE
 ## Category-enUS: Other
 ## Category-deDE: Anderes
 ## Category-esES: Otros
