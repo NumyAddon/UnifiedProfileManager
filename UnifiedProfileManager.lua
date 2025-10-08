@@ -85,6 +85,7 @@ function UPM:ADDON_LOADED()
     local defaults = {
         hideAddonsSetToDefault = false,
         hideAddonsWithAllAltsUsingSameProfile = false,
+        hideAddonsWithAllAltsUsingCharProfile = true,
         hideAltsMatchingCurrentCharacter = false,
     };
     for property, value in pairs(defaults) do
@@ -493,6 +494,15 @@ function UPM:GetOptionsTable(skipAddons)
                         set = setOption,
                         width = 'double',
                     },
+                    hideAddonsWithAllAltsUsingCharProfile = {
+                        type = 'toggle',
+                        name = 'Hide Addons where all alts use a character specific profile',
+                        desc = 'Hide addons where all characters use their own character specific profile',
+                        order = increment(),
+                        get = getOption,
+                        set = setOption,
+                        width = 'double',
+                    },
                     hideAddonsSetToCharProfile = {
                         type = 'toggle',
                         name = ('Hide Addons Set to %s'):format(currentCharacterName),
@@ -582,7 +592,7 @@ function UPM:GetOptionsTable(skipAddons)
                 arg = db,
                 func = prune,
             };
-            options.args['profiles'..i] = option;
+            options.args['profiles' .. i] = option;
 
             local choose = CopyTable(option.args.choose);
             choose.order = getOrder;
@@ -596,6 +606,20 @@ function UPM:GetOptionsTable(skipAddons)
                 if self.db.hideAddonsSetToCharProfile and currentProfile == currentCharacterName then
                     return true;
                 end
+                if self.db.hideAddonsWithAllAltsUsingCharProfile then
+                    local duplicateFound = false
+                    local foundProfiles = {}
+                    for _, v in pairs(choose.handler.db.sv.profileKeys) do
+                        if foundProfiles[v] then
+                            duplicateFound = true;
+                            break;
+                        end
+                        foundProfiles[v] = true;
+                    end
+                    if not duplicateFound then
+                        return true;
+                    end
+                end
                 if self.db.hideAddonsWithAllAltsUsingSameProfile then
                     local lastSeenProfile;
                     for _, v in pairs(choose.handler.db.sv.profileKeys) do
@@ -608,7 +632,7 @@ function UPM:GetOptionsTable(skipAddons)
                     return true;
                 end
             end
-            addons.args['profiles'..i] = choose;
+            addons.args['profiles' .. i] = choose;
         end
     end
 
