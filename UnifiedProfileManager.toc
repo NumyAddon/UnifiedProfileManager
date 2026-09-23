@@ -5,6 +5,8 @@
 ## Title: Unified Profile Manager
 ## Notes: A simple overview of all addon profiles for addons that use AceDB
 ## Author: Numy
+## X-GameType: [Game]
+## X-GameFamily: [Family]
 ## SavedVariables: UnifiedProfileManagerDB
 ## AddonCompartmentFunc: UnifiedProfileManager_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: UnifiedProfileManager_OnAddonCompartmentEnter

@@ -8,6 +8,16 @@ local AceConfigDialog = LibStub('AceConfigDialog-3.0');
 local LibDualSpec = LibStub('LibDualSpec-1.0', true);
 
 local StripHyperlinks = C_StringUtil and C_StringUtil.StripHyperlinks or StripHyperlinks;
+local GetAllClassIDs = C_SpecializationInfo.GetAllClassIDs or function()
+    local classIDs = {}
+    for classID = 1, GetNumClasses() do
+        if GetClassInfo(classID) then
+            table.insert(classIDs, classID);
+        end
+    end
+
+    return classIDs;
+end;
 
 local function SortAddons(name1, name2)
     return strcmputf8i(StripHyperlinks(name1), StripHyperlinks(name2)) < 0;
@@ -199,12 +209,10 @@ do
         CHARACTER_REALM_MAGIC_KEY,
     };
     local classNameFormat = '|Tinterface/icons/classicon_%s:16|t %s';
-    for classID = 1, GetNumClasses() do
+    for _, classID in ipairs(GetAllClassIDs()) do
         local className, classFilename = GetClassInfo(classID);
-        if className then
-            defaultProfilesProto[classFilename] = classNameFormat:format(classFilename, className);
-            table.insert(defaultProfilesOrder, classFilename);
-        end
+        defaultProfilesProto[classFilename] = classNameFormat:format(classFilename, className);
+        table.insert(defaultProfilesOrder, classFilename);
     end
 
     local defaultProfileCache = {};
